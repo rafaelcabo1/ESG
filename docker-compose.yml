@@ -1,0 +1,58 @@
+version: "3.8"
+
+networks:
+  greensight-network:
+    name: greensight-network
+
+services:
+  cadvisor:
+    image: google/cadvisor
+    networks:
+      - greensight-network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /dev/disk/:/dev/disk:ro
+    expose:
+      - 8080
+    privileged: true
+    restart: unless-stopped
+
+  greensight-prometheus:
+    build: ./prometheus
+    image: capgemini/greensight-prometheus
+    networks:
+      - greensight-network
+    expose:
+      - 9090
+    depends_on:
+      - cadvisor
+    restart: unless-stopped
+
+  greensight-measure-collector:
+    build: ./measure-collector
+    image: capgemini/greensight-measure-collector
+	networks:
+      - greensight-network
+    expose:
+      - 11001
+    ports:
+      - ${MEASURE_COLLECTOR_PORT:-29993}:11001
+    volumes:
+      - ${DATA:-./}:/user/local/app/results
+    depends_on:
+      - greensight-prometheus
+    restart: unless-stopped
+
+  greensight-orchestrator:
+    build: ./orchestrator
+    image: capgemini/greensight-orchestrator
+    networks:
+      - greensight-network
+    volumes:
+      - ${CONFIG_FILE:-./config.json}:/user/local/app/config.json
+    depends_on:
+      - greensight-measure-collector
+
+
